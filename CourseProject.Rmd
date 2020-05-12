@@ -1,0 +1,161 @@
+---
+title: "Course_Project"
+author: "BSantos"
+date: "5/11/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1. Summary
+  
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+In this project, the goal is to predict the manner in which they did the exercise. 
+  
+# 2. Load data and r packages
+Load all necessary librariesin order to do this project. We will also set a seed to garantee reproducability of random results.
+```{r, message=FALSE}
+    # Load r packages
+    library(caret); library(gbm); library(randomForest); 
+    library(rpart); library(plyr); library(rattle); set.seed(666)
+```
+We will assume the files are already downloaded and saved in working directory.
+```{r}
+    # Save datasets from csv files, assuming the files are already stored in working directory
+    train_data <- read.csv("pml-training.csv",header = TRUE)
+    dim_traindata <- dim(train_data)
+    test_data <- read.csv("pml-testing.csv", header = TRUE)
+    dim_testdata <- dim(test_data)
+```
+The training data set, *train_data* has *`r dim_traindata[1]`* observations and *`r dim_traindata[2]`* columns (variables), while test data set has the same number of columns but only *`r dim_testdata[1]`* observations.
+
+# 3. Clean data
+
+After inspecting *train_data* we see that many variables have NA values, and the first seven columns include data regarding the subject. These type of informations will be removed in the following section.  
+```{r}
+    # Train data cleaning
+    train_data <- train_data[, colSums(is.na(train_data)) == 0]
+    train_data <- train_data[,-c(1:7)]
+```
+
+```{r}
+    # Test data cleaning
+    test_data <- test_data[, colSums(is.na(test_data)) == 0]
+    test_data <- test_data[,-c(1:7)]
+```
+To further clean train data set, we will remove variables with near zero variables.
+
+```{r}
+    # remove variables with near zero variance from training set
+    nzvar <- nearZeroVar(train_data)
+    train_data <- train_data[, -nzvar]
+```
+
+We will now prepare the data for prediction by splitting the training data into 75% as train data and 25% as test data. 
+```{r}
+    # Create training & test dataset
+    inTrain <- createDataPartition(train_data$classe, p = 0.75, list = FALSE)
+    train_set <- train_data[inTrain,]
+    test_set <- train_data[-inTrain,]
+    dim(train_set)
+    dim(test_set)
+```
+After cleaning data, both training and test data set is now down to 53 variables.
+
+
+# 4. Training Models
+
+In this project will we conside three different training models:  
+1. Random Forest  
+2. Decision Tree  
+3. Gradient boosting method  
+
+We will use the function trainControl with cross-validation, cv, criteria and number of folds equal to control computational nuances of the train function. This way, we wish to limit the effects of overfiting. 
+
+```{r}
+    rfControl <- trainControl(method = "cv", number = 5, verboseIter=FALSE)
+    # Random Forest training model
+    mod_rf <- train(classe ~., data = train_set, method = "rf",trControl = rfControl)
+```
+
+```{r}
+    # Decision Tree trainig model
+    dtControl <- trainControl(method="cv", number=5)
+    mod_dt <- train(classe ~., data = train_set, method = "rpart",trControl = dtControl)
+```
+
+```{r}
+    # Gradient boosting method
+    gbmControl <- trainControl(method="cv", number=5)
+    mod_gbm <- train(classe ~., data = train_set, method = "gbm",trControl = gbmControl, verbose = FALSE)
+```
+
+
+# 5. Prediction
+
+We now validade the models obtained in the previous section, using function predict, and afterwards, we check how well they perform by checking the accuracy value for each of them.
+```{r}
+    pred_rf <- predict(mod_rf, newdata = test_set)
+    pred_gbm <- predict(mod_gbm, newdata = test_set)
+    pred_dt <- predict(mod_dt, newdata = test_set)
+```
+
+
+Accuracy of random forest prediction method:
+```{r}
+    # Random forest accuracy
+    cm_rf <- confusionMatrix(pred_rf, test_set$classe)
+    cm_rf$overall[1]
+```
+Accuracy of decision tree prediction method:
+```{r}
+    # Decision Tree accuracy
+    cm_dt <- confusionMatrix(pred_dt,test_set$classe)
+    cm_dt$overall[1]
+```
+
+Accuracy of gradient boosting prediction method:
+```{r}
+    # Gradient boosting accuracy
+    cm_gbm <- confusionMatrix(pred_gbm,test_set$classe)
+    cm_gbm$overall[1]
+```
+
+
+# 6. Conclusions
+Random forest model gives higher accuracy of 99.4% so we would apply this to predict the values of classe for the test data set.
+
+```{r}
+finalTest <- predict(mod_rf,newdata = test_data)
+finalTest
+```
+
+\newpage
+# Appendix
+### Random Forest Method
+
+```{r}
+# display of random forest method
+  print(cm_rf)
+```
+
+### Decision Tress Method
+```{r}
+    fancyRpartPlot(mod_dt$finalModel, sub = "")
+```
+  
+  Fig.1  - Classification Tree, 5 folds, using cross-validation technique.
+
+```{r}
+  # display of decision trees method
+  print(cm_dt)
+```
+### Gradient Boosting Method
+
+```{r}
+  # display of decision trees method
+  print(cm_gbm)
+```
+
